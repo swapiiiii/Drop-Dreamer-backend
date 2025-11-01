@@ -1,7 +1,9 @@
 package com.dropdreamer.backend.controller;
 
 import com.dropdreamer.backend.entity.User;
+import com.dropdreamer.backend.entity.Admin;
 import com.dropdreamer.backend.repository.UserRepository;
+import com.dropdreamer.backend.repository.AdminRepository;
 import com.dropdreamer.backend.service.EmailService;
 import com.dropdreamer.backend.util.JwtUtil;
 import org.springframework.web.bind.annotation.*;
@@ -14,16 +16,19 @@ public class UserController {
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
+    private final AdminRepository adminRepository;
     private final EmailService emailService;
 
-    // ✅ Correct constructor injection for all dependencies
-    public UserController(UserRepository userRepository, EmailService emailService, JwtUtil jwtUtil) {
+    // ✅ Constructor injection
+    public UserController(UserRepository userRepository, AdminRepository adminRepository,
+                          EmailService emailService, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
+        this.adminRepository = adminRepository;
         this.emailService = emailService;
         this.jwtUtil = jwtUtil;
     }
 
-    // ✅ Signup (register new user)
+    // ✅ USER SIGNUP
     @PostMapping("/signup")
     public Map<String, String> signup(@RequestBody Map<String, String> requestBody) {
         String firstName = requestBody.get("firstName");
@@ -40,7 +45,6 @@ public class UserController {
             return Map.of("message", "User already exists");
         }
 
-        // Generate 6-digit OTP
         String otp = String.valueOf(new Random().nextInt(900000) + 100000);
 
         User user = new User(firstName, lastName, email, mobile, password);
@@ -48,7 +52,6 @@ public class UserController {
         user.setEmailVerified(false);
         userRepository.save(user);
 
-        // Send OTP via Email
         emailService.sendOtpEmail(email, otp);
 
         return Map.of(
@@ -57,7 +60,7 @@ public class UserController {
         );
     }
 
-    // ✅ Verify OTP
+    // ✅ VERIFY OTP
     @PostMapping("/verify-otp")
     public Map<String, String> verifyOtp(@RequestBody Map<String, String> requestBody) {
         String email = requestBody.get("email");
@@ -84,7 +87,7 @@ public class UserController {
         }
     }
 
-    // ✅ Login (with JWT)
+    // ✅ LOGIN (User or Admin)
     @PostMapping("/login")
     public Map<String, Object> login(@RequestBody Map<String, String> requestBody) {
         String email = requestBody.get("email");
@@ -94,38 +97,58 @@ public class UserController {
             return Map.of("message", "Email and password are required");
         }
 
+        // 🔹 Check if Admin
+        Optional<Admin> adminOpt = adminRepository.findByEmail(email);
+        if (adminOpt.isPresent()) {
+            Admin admin = adminOpt.get();
+
+            // Temporary: plain-text password check for demo
+            if (password.equals("Main Admin")) {
+                String token = jwtUtil.generateToken(admin.getEmail());
+                return Map.of(
+                        "message", "Admin login successful",
+                        "token", token,
+                        "role", "ADMIN",
+                        "email", admin.getEmail(),
+                        "name", admin.getName()
+                );
+            } else {
+                return Map.of("message", "Invalid admin password");
+            }
+        }
+
+        // 🔹 Otherwise, check User
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isEmpty()) {
             return Map.of("message", "User not found");
         }
 
         User user = userOpt.get();
-
         if (!Boolean.TRUE.equals(user.isEmailVerified())) {
             return Map.of("message", "Email not verified");
         }
-
         if (!password.equals(user.getPassword())) {
             return Map.of("message", "Invalid password");
         }
 
-        // ✅ Generate JWT Token
         String token = jwtUtil.generateToken(user.getEmail());
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "Login successful");
-        response.put("token", token);
-        response.put("email", user.getEmail());
-        response.put("firstName", user.getFirstName());
-        response.put("lastName", user.getLastName());
-
-        return response;
+        return Map.of(
+                "message", "User login successful",
+                "token", token,
+                "role", "USER",
+                "email", user.getEmail(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName()
+        );
     }
 
+    // ✅ Get All Users
     @GetMapping("/users")
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
+
+    // ✅ Validate JWT Token
     @GetMapping("/validate-token")
     public Map<String, Object> validateToken(@RequestHeader("Authorization") String authHeader) {
         String token = authHeader.replace("Bearer ", "");
@@ -144,10 +167,9 @@ public class UserController {
 
         return response;
     }
+
     @GetMapping("/test-token")
     public String testToken() {
         return "✅ Token is valid and user is authenticated!";
     }
-
-
 }

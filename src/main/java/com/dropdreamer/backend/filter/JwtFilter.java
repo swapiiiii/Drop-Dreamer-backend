@@ -26,14 +26,15 @@ public class JwtFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
+        String method = request.getMethod();
 
-        // ✅ Skip authentication for public endpoints
-        if (isPublicEndpoint(path)) {
+        // ✅ Public routes
+        if (isPublicEndpoint(path, method)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ✅ Check for Authorization header
+        // ✅ Validate JWT for protected routes
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -42,17 +43,17 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         String token = authHeader.substring(7);
-
         try {
             String email = jwtUtil.extractUsername(token);
 
-            if (email == null || jwtUtil.extractExpiration(token).before(new java.util.Date())) {
+            if (email == null || jwtUtil.isTokenExpired(token)) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.getWriter().write("Invalid or expired token");
                 return;
             }
 
-            // ✅ Token is valid — you can optionally attach user info to request here
+            // (Optional) You could attach user info to the request here
+
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Invalid token");
@@ -62,11 +63,21 @@ public class JwtFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private boolean isPublicEndpoint(String path) {
-        return path.contains("/signup") ||
+    private boolean isPublicEndpoint(String path, String method) {
+        // Public routes
+        if (path.contains("/signup") ||
                 path.contains("/login") ||
                 path.contains("/verify-otp") ||
                 path.contains("/forgot-password") ||
-                path.contains("/reset-password");
+                path.contains("/reset-password")) {
+            return true;
+        }
+
+        // Allow GET on products (public browsing)
+        if (path.startsWith("/products") && method.equalsIgnoreCase("GET")) {
+            return true;
+        }
+
+        return false;
     }
 }

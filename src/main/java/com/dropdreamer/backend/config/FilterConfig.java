@@ -16,11 +16,14 @@ public class FilterConfig {
     }
 
     // ✅ Register filter for /auth/* URLs
+
     @Bean
     public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter jwtFilter) {
         FilterRegistrationBean<JwtFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(jwtFilter);
-        registrationBean.addUrlPatterns("/auth/*"); // applies to all /auth endpoints
+        registrationBean.addUrlPatterns("/products/*", "/admin/*"); // ✅ protect these routes
+        registrationBean.setOrder(1);
         return registrationBean;
     }
+
 }
