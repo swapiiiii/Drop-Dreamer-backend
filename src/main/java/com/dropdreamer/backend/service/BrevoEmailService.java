@@ -18,7 +18,7 @@ public class BrevoEmailService {
         RestTemplate restTemplate = new RestTemplate();
 
         Map<String, Object> body = new HashMap<>();
-        Map<String, String> sender = Map.of("name", "Drop Dreamer", "email", "no-reply@dropdreamer.com");
+        Map<String, String> sender = Map.of("name", "Drop Dreamer", "email", "swapnilb921@gmail.com");
         Map<String, String> to = Map.of("email", toEmail);
 
         body.put("sender", sender);
