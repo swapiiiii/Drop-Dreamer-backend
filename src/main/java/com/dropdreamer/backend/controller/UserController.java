@@ -4,7 +4,7 @@ import com.dropdreamer.backend.entity.User;
 import com.dropdreamer.backend.entity.Admin;
 import com.dropdreamer.backend.repository.UserRepository;
 import com.dropdreamer.backend.repository.AdminRepository;
-import com.dropdreamer.backend.service.EmailService;
+import com.dropdreamer.backend.service.BrevoEmailService;
 import com.dropdreamer.backend.util.JwtUtil;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -17,11 +17,11 @@ public class UserController {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final AdminRepository adminRepository;
-    private final EmailService emailService;
+    private final BrevoEmailService emailService;
 
     // ✅ Constructor injection
     public UserController(UserRepository userRepository, AdminRepository adminRepository,
-                          EmailService emailService, JwtUtil jwtUtil) {
+                          BrevoEmailService emailService, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.adminRepository = adminRepository;
         this.emailService = emailService;
