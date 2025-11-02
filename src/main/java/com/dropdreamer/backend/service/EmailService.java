@@ -21,7 +21,7 @@ public class EmailService {
 
             // 🔹 Build the request body
             Map<String, Object> emailBody = new HashMap<>();
-            emailBody.put("sender", Map.of("name", "Drop Dreamer", "email", "noreply@dropdreamer.com"));
+            emailBody.put("sender", Map.of("name", "Drop Dreamer", "email", "swapnilb921@gmail.com"));
             emailBody.put("to", List.of(Map.of("email", toEmail)));
             emailBody.put("subject", "Drop Dreamer - OTP Verification");
             emailBody.put(
