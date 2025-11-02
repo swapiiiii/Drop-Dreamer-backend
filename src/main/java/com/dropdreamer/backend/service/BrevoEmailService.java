@@ -31,7 +31,6 @@ public class BrevoEmailService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("api-key", apiKey);
-        System.out.println("🔑 Brevo API Key (first 10 chars): " + apiKey.substring(0, 10));
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
