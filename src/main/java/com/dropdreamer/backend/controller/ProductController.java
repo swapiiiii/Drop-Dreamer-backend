@@ -20,28 +20,29 @@ public class ProductController {
     private final AdminRepository adminRepository;
     private final JwtUtil jwtUtil;
 
-    public ProductController(ProductRepository productRepository, AdminRepository adminRepository, JwtUtil jwtUtil) {
+    public ProductController(ProductRepository productRepository,
+                             AdminRepository adminRepository,
+                             JwtUtil jwtUtil) {
         this.productRepository = productRepository;
         this.adminRepository = adminRepository;
         this.jwtUtil = jwtUtil;
     }
 
-    // ✅ Strict admin validation
+    // ---------------------------------------
+    // CHECK ADMIN AUTHORIZATION
+    // ---------------------------------------
     private boolean isAdminAuthorized(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return false;
         }
-
         try {
             String token = authHeader.substring(7);
             String email = jwtUtil.extractUsername(token);
 
-            // validate token structure + expiration
             if (jwtUtil.isTokenExpired(token)) {
                 return false;
             }
 
-            // check if admin exists in DB
             return adminRepository.findByEmail(email).isPresent();
 
         } catch (JwtException | IllegalArgumentException e) {
@@ -49,13 +50,13 @@ public class ProductController {
         }
     }
 
-    // ✅ Add new product (Admin only)
+    // ---------------------------------------
+    // ADD PRODUCT (ADMIN ONLY)
+    // ---------------------------------------
     @PostMapping("/add")
     public Map<String, Object> addProduct(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody Product product) {
-
-        System.out.println("🔍 Entered addProduct() - Auth header: " + authHeader);
 
         if (!isAdminAuthorized(authHeader)) {
             return Map.of("message", "❌ Unauthorized: Only admin can add products");
@@ -63,22 +64,55 @@ public class ProductController {
 
         product.setCreatedAt(LocalDateTime.now());
         productRepository.save(product);
+
         return Map.of("message", "✅ Product added successfully", "product", product);
     }
 
-    // ✅ Fetch all products (Public)
+    // ---------------------------------------
+    // GET PRODUCTS (FILTERS WORK PERFECTLY)
+    // ---------------------------------------
     @GetMapping
-    public List<Product> getAllProducts() {
+    public List<Product> getProducts(
+            @RequestParam(required = false, name = "mainCategory") String mainCategory,
+            @RequestParam(required = false, name = "subCategory") String subCategory,
+            @RequestParam(required = false, name = "search") String search
+    ) {
+
+        // 1️⃣ Search by product name
+        if (search != null && !search.isEmpty()) {
+            return productRepository.findByNameContainingIgnoreCase(search);
+        }
+
+        // 2️⃣ Filter by main + sub category
+        if (mainCategory != null && subCategory != null) {
+            return productRepository.findByMainCategoryAndSubCategory(mainCategory, subCategory);
+        }
+
+        // 3️⃣ Filter by main category only
+        if (mainCategory != null) {
+            return productRepository.findByMainCategory(mainCategory);
+        }
+
+        // 4️⃣ Filter by sub category only
+        if (subCategory != null) {
+            return productRepository.findBySubCategory(subCategory);
+        }
+
+        // 5️⃣ Default → all products
         return productRepository.findAll();
     }
 
-    // ✅ Fetch single product (Public)
+    // ---------------------------------------
+    // GET SINGLE PRODUCT
+    // ---------------------------------------
     @GetMapping("/{id}")
-    public Product getProductById(@PathVariable Long id) {
+    public Product getProduct(@PathVariable Long id) {
         return productRepository.findById(id).orElse(null);
     }
 
-    // ✅ Update product (Admin only)
+    // ---------------------------------------
+    // UPDATE PRODUCT (ADMIN ONLY)
+    // ---------------------------------------
     @PutMapping("/{id}")
     public Map<String, String> updateProduct(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -95,23 +129,30 @@ public class ProductController {
         }
 
         Product existingProduct = productOpt.get();
+
         existingProduct.setName(updatedProduct.getName());
         existingProduct.setDescription(updatedProduct.getDescription());
         existingProduct.setPrice(updatedProduct.getPrice());
-        existingProduct.setCategory(updatedProduct.getCategory());
         existingProduct.setStock(updatedProduct.getStock());
+        existingProduct.setMainCategory(updatedProduct.getMainCategory());
+        existingProduct.setSubCategory(updatedProduct.getSubCategory());
+
         existingProduct.setImageUrl1(updatedProduct.getImageUrl1());
         existingProduct.setImageUrl2(updatedProduct.getImageUrl2());
         existingProduct.setImageUrl3(updatedProduct.getImageUrl3());
         existingProduct.setImageUrl4(updatedProduct.getImageUrl4());
         existingProduct.setImageUrl5(updatedProduct.getImageUrl5());
+
         existingProduct.setUpdatedAt(LocalDateTime.now());
 
         productRepository.save(existingProduct);
+
         return Map.of("message", "✅ Product updated successfully");
     }
 
-    // ✅ Delete product (Admin only)
+    // ---------------------------------------
+    // DELETE PRODUCT (ADMIN ONLY)
+    // ---------------------------------------
     @DeleteMapping("/{id}")
     public Map<String, String> deleteProduct(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -126,6 +167,7 @@ public class ProductController {
         }
 
         productRepository.deleteById(id);
+
         return Map.of("message", "✅ Product deleted successfully");
     }
 }

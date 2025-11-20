@@ -14,7 +14,13 @@ public class Product {
     private String name;
     private String description;
     private Double price;
-    private String category;
+
+    // OLD CATEGORY (shoes, accessories etc.) → treat as subCategory
+    private String subCategory;
+
+    // NEW main category (cricket, football etc.)
+    private String mainCategory;
+
     private Integer stock;
 
     private String imageUrl1;
@@ -36,7 +42,10 @@ public class Product {
         updatedAt = LocalDateTime.now();
     }
 
-    // ✅ Getters and Setters
+    // -----------------------
+    // Getters and Setters
+    // -----------------------
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -49,8 +58,11 @@ public class Product {
     public Double getPrice() { return price; }
     public void setPrice(Double price) { this.price = price; }
 
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
+    public String getSubCategory() { return subCategory; }
+    public void setSubCategory(String subCategory) { this.subCategory = subCategory; }
+
+    public String getMainCategory() { return mainCategory; }
+    public void setMainCategory(String mainCategory) { this.mainCategory = mainCategory; }
 
     public Integer getStock() { return stock; }
     public void setStock(Integer stock) { this.stock = stock; }
