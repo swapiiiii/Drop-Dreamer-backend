@@ -25,17 +25,29 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // 🔹 Allow Angular requests (CORS)
+        response.setHeader("Access-Control-Allow-Origin", "http://localhost:4200");
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            return;
+        }
+
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        // ✅ Public routes
+        // 🔹 PUBLIC endpoints
         if (isPublicEndpoint(path, method)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // ✅ Validate JWT for protected routes
+        // 🔹 PRIVATE endpoints → require JWT
         String authHeader = request.getHeader("Authorization");
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Missing or invalid Authorization header");
@@ -43,6 +55,7 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         String token = authHeader.substring(7);
+
         try {
             String email = jwtUtil.extractUsername(token);
 
@@ -51,8 +64,6 @@ public class JwtFilter extends OncePerRequestFilter {
                 response.getWriter().write("Invalid or expired token");
                 return;
             }
-
-            // (Optional) You could attach user info to the request here
 
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -64,7 +75,8 @@ public class JwtFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublicEndpoint(String path, String method) {
-        // Public routes
+
+        // Auth APIs
         if (path.contains("/signup") ||
                 path.contains("/login") ||
                 path.contains("/verify-otp") ||
@@ -73,7 +85,7 @@ public class JwtFilter extends OncePerRequestFilter {
             return true;
         }
 
-        // Allow GET on products (public browsing)
+        // Public product GET
         if (path.startsWith("/products") && method.equalsIgnoreCase("GET")) {
             return true;
         }

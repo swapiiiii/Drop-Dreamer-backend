@@ -21,9 +21,18 @@ public class FilterConfig {
     public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter jwtFilter) {
         FilterRegistrationBean<JwtFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(jwtFilter);
-        registrationBean.addUrlPatterns("/products/*", "/admin/*"); // ✅ protect these routes
+
+        // Protect all products & admin routes except GET /products
+        registrationBean.addUrlPatterns(
+                "/products/*",
+                "/products/**",
+                "/admin/*",
+                "/admin/**"
+        );
+
         registrationBean.setOrder(1);
         return registrationBean;
     }
+
 
 }
