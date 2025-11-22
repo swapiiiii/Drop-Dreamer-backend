@@ -9,21 +9,19 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class FilterConfig {
 
-    // ✅ Create JwtFilter bean manually
     @Bean
     public JwtFilter jwtFilter(JwtUtil jwtUtil) {
         return new JwtFilter(jwtUtil);
     }
-
-    // ✅ Register filter for /auth/* URLs
 
     @Bean
     public FilterRegistrationBean<JwtFilter> jwtFilterRegistration(JwtFilter jwtFilter) {
         FilterRegistrationBean<JwtFilter> registrationBean = new FilterRegistrationBean<>();
         registrationBean.setFilter(jwtFilter);
 
-        // Protect all products & admin routes except GET /products
+        // Protect cart, products & admin routes
         registrationBean.addUrlPatterns(
+                "/cart/*",
                 "/products/*",
                 "/products/**",
                 "/admin/*",
@@ -33,6 +31,4 @@ public class FilterConfig {
         registrationBean.setOrder(1);
         return registrationBean;
     }
-
-
 }

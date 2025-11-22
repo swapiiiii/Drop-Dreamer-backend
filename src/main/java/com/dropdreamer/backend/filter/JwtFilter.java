@@ -75,7 +75,6 @@ public class JwtFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublicEndpoint(String path, String method) {
-
         // Auth APIs
         if (path.contains("/signup") ||
                 path.contains("/login") ||
@@ -90,6 +89,12 @@ public class JwtFilter extends OncePerRequestFilter {
             return true;
         }
 
+        // Allow guest cart access
+        if (path.startsWith("/cart") && "POST".equalsIgnoreCase(method)) {
+            return true;
+        }
+
         return false;
     }
+
 }

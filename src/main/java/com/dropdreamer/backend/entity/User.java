@@ -51,6 +51,11 @@ public class User {
         this.password = password;
     }
 
+    // ✅ Add this constructor for reference by ID
+    public User(Long id) {
+        this.id = id;
+    }
+
     // Getters and setters
     public Long getId() { return id; }
     public String getFirstName() { return firstName; }
