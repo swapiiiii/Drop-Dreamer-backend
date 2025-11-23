@@ -25,7 +25,7 @@ public class JwtFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 🔹 Allow Angular requests (CORS)
+        // CORS
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:4200");
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -39,13 +39,13 @@ public class JwtFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-        // 🔹 PUBLIC endpoints
-        if (isPublicEndpoint(path, method)) {
+        // ---- PUBLIC ENDPOINTS ----
+        if (isPublicEndpoint(request, path, method)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 🔹 PRIVATE endpoints → require JWT
+        // ---- PRIVATE ENDPOINTS -> JWT REQUIRED ----
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -74,7 +74,8 @@ public class JwtFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private boolean isPublicEndpoint(String path, String method) {
+    private boolean isPublicEndpoint(HttpServletRequest request, String path, String method) {
+
         // Auth APIs
         if (path.contains("/signup") ||
                 path.contains("/login") ||
@@ -89,11 +90,12 @@ public class JwtFilter extends OncePerRequestFilter {
             return true;
         }
 
-        // Allow guest cart access
-        if (path.startsWith("/cart") && "POST".equalsIgnoreCase(method)) {
-            return true;
+        // ---- GUEST CART ACCESS (SESSION ID PROVIDED) ----
+        if (path.startsWith("/cart") && request.getParameter("sessionId") != null) {
+            return true; // allow for add/remove/update/get
         }
 
+        // For logged-in users: /cart/* is protected → requires token
         return false;
     }
 

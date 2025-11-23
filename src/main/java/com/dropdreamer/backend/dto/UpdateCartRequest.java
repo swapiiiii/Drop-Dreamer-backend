@@ -2,13 +2,13 @@ package com.dropdreamer.backend.dto;
 
 public class UpdateCartRequest {
     private Long productId;
-    private Integer quantity;
+    private int quantity;
 
     public UpdateCartRequest() {}
 
     public Long getProductId() { return productId; }
     public void setProductId(Long productId) { this.productId = productId; }
 
-    public Integer getQuantity() { return quantity; }
-    public void setQuantity(Integer quantity) { this.quantity = quantity; }
+    public int getQuantity() { return quantity; }
+    public void setQuantity(int quantity) { this.quantity = quantity; }
 }
