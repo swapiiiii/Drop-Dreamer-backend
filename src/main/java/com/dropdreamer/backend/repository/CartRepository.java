@@ -3,19 +3,16 @@ package com.dropdreamer.backend.repository;
 import com.dropdreamer.backend.entity.Cart;
 import com.dropdreamer.backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 public interface CartRepository extends JpaRepository<Cart, Long> {
 
-    // Get cart for logged-in user by User object
     Optional<Cart> findByUser(User user);
 
-    // Convenience method: Get cart for logged-in user by userId
-    default Optional<Cart> findByUserId(Long userId) {
-        return findByUser(new User(userId));
-    }
+    Optional<Cart> findByUser_Id(Long userId); // ✅ CORRECT & SAFE
 
-    // Get cart for guest (session)
     Optional<Cart> findBySessionId(String sessionId);
 }
+

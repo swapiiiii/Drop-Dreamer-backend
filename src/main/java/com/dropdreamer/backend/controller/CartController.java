@@ -13,7 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/cart")
+@RequestMapping("/api/cart")
 public class CartController {
 
     private final CartService cartService;
@@ -26,167 +26,180 @@ public class CartController {
         this.userRepository = userRepository;
     }
 
-    // Add to cart (guest or logged-in)
-    @PostMapping("/add")
-    public ResponseEntity<CartResponse> addToCart(
-            HttpServletRequest request,
-            @RequestParam(required = false) String sessionId,
-            @RequestBody AddToCartRequest body) {
+    // -------------------- USER CART --------------------
+
+    @PostMapping("/user/add")
+    public ResponseEntity<CartResponse> addToUserCart(HttpServletRequest request,
+                                                      @RequestBody AddToCartRequest body) {
+        if (body.getProductId() == null) return ResponseEntity.badRequest().build();
 
         String authHeader = request.getHeader("Authorization");
-        Cart cart;
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-            cart = cartService.addToCartForUser(user.getId(), body.getProductId(),
-                    body.getQuantity() == null ? 1 : body.getQuantity());
-        } else if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartService.addToCartForGuest(sessionId, body.getProductId(),
-                    body.getQuantity() == null ? 1 : body.getQuantity());
-        } else {
-            return ResponseEntity.badRequest().build();
-        }
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
+
+        int quantity = (body.getQuantity() == null || body.getQuantity() <= 0) ? 1 : body.getQuantity();
+        Cart cart = cartService.addToCartForUser(user.getId(), body.getProductId(), quantity);
 
         return ResponseEntity.ok(CartResponse.fromCart(cart));
     }
 
-    // Merge guest cart after login
-    @PostMapping("/merge")
-    public ResponseEntity<CartResponse> mergeGuestCart(
-            HttpServletRequest request,
-            @RequestParam String sessionId) {
+    @PutMapping("/user/update")
+    public ResponseEntity<CartResponse> updateUserCart(HttpServletRequest request,
+                                                       @RequestBody UpdateCartRequest body) {
+        if (body.getProductId() == null || body.getQuantity() == null || body.getQuantity() < 0)
+            return ResponseEntity.badRequest().build();
 
         String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-            Cart cart = cartService.mergeGuestCartWithUser(sessionId, user.getId());
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
 
-        return ResponseEntity.status(401).build();
+        Cart cart = cartService.updateCartItemForUser(user.getId(), body.getProductId(), body.getQuantity());
+        return ResponseEntity.ok(CartResponse.fromCart(cart));
     }
 
-    // Update quantity of a cart item
-    @PostMapping("/update")
-    public ResponseEntity<CartResponse> updateCartItem(
-            HttpServletRequest request,
-            @RequestParam(required = false) String sessionId,
-            @RequestBody UpdateCartRequest body) {
+    @DeleteMapping("/user/remove")
+    public ResponseEntity<?> removeUserCartItem(HttpServletRequest request,
+                                                @RequestParam Long productId) {
+        if (productId == null) return ResponseEntity.badRequest().build();
 
         String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-        Cart cart;
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
 
-            cart = cartService.updateCartItemForUser(user.getId(), body.getProductId(), body.getQuantity());
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
-
-        if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartService.updateCartItemForGuest(sessionId, body.getProductId(), body.getQuantity());
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
-
-        return ResponseEntity.badRequest().build();
+        Cart cart = cartService.removeItemForUser(user.getId(), productId);
+        return cart == null ? ResponseEntity.ok("Cart deleted successfully")
+                : ResponseEntity.ok(CartResponse.fromCart(cart));
     }
 
-    // Remove item from cart (logged-in / guest)
-    @DeleteMapping("/remove")
-    public ResponseEntity<CartResponse> removeCartItem(
-            HttpServletRequest request,
-            @RequestParam(required = false) String sessionId,
-            @RequestParam Long productId) {
+    @PatchMapping("/user/decrement")
+    public ResponseEntity<?> decrementUserCartItem(HttpServletRequest request,
+                                                   @RequestParam Long productId) {
+        if (productId == null) return ResponseEntity.badRequest().build();
 
         String authHeader = request.getHeader("Authorization");
-        Cart cart;
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-        // Logged-in user
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
 
-            cart = cartService.removeItemForUser(user.getId(), productId);
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
-
-        // Guest user
-        if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartService.removeItemForGuest(sessionId, productId);
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
-
-        return ResponseEntity.badRequest().build();
+        Cart cart = cartService.decrementItemForUser(user.getId(), productId);
+        return cart == null ? ResponseEntity.ok("Cart deleted successfully")
+                : ResponseEntity.ok(CartResponse.fromCart(cart));
     }
 
-    // Clear entire cart (logged-in / guest)
-    @DeleteMapping("/clear")
-    public ResponseEntity<CartResponse> clearCart(
-            HttpServletRequest request,
-            @RequestParam(required = false) String sessionId) {
-
+    @DeleteMapping("/user/clear")
+    public ResponseEntity<?> clearUserCart(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-        Cart cart;
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-        // Logged-in user
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
 
-            cart = cartService.clearCartForUser(user.getId());
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
-
-        // Guest user
-        if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartService.clearCartForGuest(sessionId);
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
-
-        return ResponseEntity.badRequest().build();
+        cartService.clearCartForUser(user.getId());
+        return ResponseEntity.ok("Cart cleared and deleted successfully");
     }
 
-    // Get cart (logged-in / guest)
-    @GetMapping("/get")
-    public ResponseEntity<CartResponse> getCart(
-            HttpServletRequest request,
-            @RequestParam(required = false) String sessionId
-    ) {
-
+    @GetMapping("/user/get")
+    public ResponseEntity<CartResponse> getUserCart(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-        Cart cart;
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-        // Logged-in user
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
 
-            cart = cartService.getCartForUser(user.getId());
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
+        Cart cart = cartService.getCartForUser(user.getId());
+        return ResponseEntity.ok(CartResponse.fromCart(cart));
+    }
 
-        // Guest user
-        if (sessionId != null && !sessionId.isEmpty()) {
-            cart = cartService.getCartForGuest(sessionId);
-            return ResponseEntity.ok(CartResponse.fromCart(cart));
-        }
+    @PostMapping("/user/merge")
+    public ResponseEntity<CartResponse> mergeGuestCartWithUser(HttpServletRequest request,
+                                                               @RequestParam String sessionId) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer "))
+            return ResponseEntity.status(401).build();
 
-        return ResponseEntity.badRequest().body(null);
+        String token = authHeader.substring(7);
+        String email = jwtUtil.extractUsername(token);
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
+
+        Cart cart = cartService.mergeGuestCartWithUser(sessionId, user.getId());
+        return ResponseEntity.ok(CartResponse.fromCart(cart));
+    }
+
+    // -------------------- GUEST CART --------------------
+
+    @PostMapping("/guest/add")
+    public ResponseEntity<CartResponse> addToGuestCart(@RequestParam String sessionId,
+                                                       @RequestBody AddToCartRequest body) {
+        if (body.getProductId() == null || sessionId.isBlank()) return ResponseEntity.badRequest().build();
+
+        int quantity = (body.getQuantity() == null || body.getQuantity() <= 0) ? 1 : body.getQuantity();
+        Cart cart = cartService.addToCartForGuest(sessionId, body.getProductId(), quantity);
+
+        return ResponseEntity.ok(CartResponse.fromCart(cart));
+    }
+
+    @PutMapping("/guest/update")
+    public ResponseEntity<CartResponse> updateGuestCart(@RequestParam String sessionId,
+                                                        @RequestBody UpdateCartRequest body) {
+        if (body.getProductId() == null || body.getQuantity() == null || body.getQuantity() < 0
+                || sessionId.isBlank()) return ResponseEntity.badRequest().build();
+
+        Cart cart = cartService.updateCartItemForGuest(sessionId, body.getProductId(), body.getQuantity());
+        return ResponseEntity.ok(CartResponse.fromCart(cart));
+    }
+
+    @DeleteMapping("/guest/remove")
+    public ResponseEntity<?> removeGuestCartItem(@RequestParam String sessionId,
+                                                 @RequestParam Long productId) {
+        if (productId == null || sessionId.isBlank()) return ResponseEntity.badRequest().build();
+
+        Cart cart = cartService.removeItemForGuest(sessionId, productId);
+        return cart == null ? ResponseEntity.ok("Cart deleted successfully")
+                : ResponseEntity.ok(CartResponse.fromCart(cart));
+    }
+
+    @PatchMapping("/guest/decrement")
+    public ResponseEntity<?> decrementGuestCartItem(@RequestParam String sessionId,
+                                                    @RequestParam Long productId) {
+        if (productId == null || sessionId.isBlank()) return ResponseEntity.badRequest().build();
+
+        Cart cart = cartService.decrementItemForGuest(sessionId, productId);
+        return cart == null ? ResponseEntity.ok("Cart deleted successfully")
+                : ResponseEntity.ok(CartResponse.fromCart(cart));
+    }
+
+    @DeleteMapping("/guest/clear")
+    public ResponseEntity<?> clearGuestCart(@RequestParam String sessionId) {
+        if (sessionId.isBlank()) return ResponseEntity.badRequest().build();
+
+        cartService.clearCartForGuest(sessionId);
+        return ResponseEntity.ok("Guest cart cleared and deleted successfully");
+    }
+
+    @GetMapping("/guest/get")
+    public ResponseEntity<CartResponse> getGuestCart(@RequestParam String sessionId) {
+        if (sessionId.isBlank()) return ResponseEntity.badRequest().build();
+
+        Cart cart = cartService.getCartForGuest(sessionId);
+        return ResponseEntity.ok(CartResponse.fromCart(cart));
     }
 }

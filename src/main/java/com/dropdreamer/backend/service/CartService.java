@@ -9,9 +9,6 @@ import com.dropdreamer.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
-
 @Service
 public class CartService {
 
@@ -27,7 +24,7 @@ public class CartService {
         this.userRepository = userRepository;
     }
 
-    // Add to cart for guest
+    // -------------------- ADD TO CART --------------------
     @Transactional
     public Cart addToCartForGuest(String sessionId, Long productId, int quantity) {
         Cart cart = cartRepository.findBySessionId(sessionId)
@@ -37,193 +34,186 @@ public class CartService {
                     return cartRepository.save(newCart);
                 });
 
-        Optional<CartItem> existingItem = cartItemRepository.findByCartAndProductId(cart, productId);
-        if (existingItem.isPresent()) {
-            CartItem item = existingItem.get();
-            item.setQuantity(item.getQuantity() + quantity);
-            cartItemRepository.save(item);
-        } else {
-            CartItem newItem = new CartItem();
-            newItem.setCart(cart);
-            newItem.setProductId(productId);
-            newItem.setQuantity(quantity);
-            cartItemRepository.save(newItem);
-        }
+        CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
+                .orElseGet(() -> {
+                    CartItem newItem = new CartItem();
+                    newItem.setCart(cart);
+                    newItem.setProductId(productId);
+                    newItem.setQuantity(0);
+                    return newItem;
+                });
 
+        item.setQuantity(item.getQuantity() + quantity);
+        cartItemRepository.save(item);
         prepareCartForDto(cart);
         return cart;
     }
 
-    // Add to cart for user
     @Transactional
     public Cart addToCartForUser(Long userId, Long productId, int quantity) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Cart cart = cartRepository.findByUser(user)
+        Cart cart = cartRepository.findByUser_Id(userId)
                 .orElseGet(() -> {
                     Cart newCart = new Cart();
                     newCart.setUser(user);
                     return cartRepository.save(newCart);
                 });
-
-        Optional<CartItem> existingItem = cartItemRepository.findByCartAndProductId(cart, productId);
-        if (existingItem.isPresent()) {
-            CartItem item = existingItem.get();
-            item.setQuantity(item.getQuantity() + quantity);
-            cartItemRepository.save(item);
-        } else {
-            CartItem newItem = new CartItem();
-            newItem.setCart(cart);
-            newItem.setProductId(productId);
-            newItem.setQuantity(quantity);
-            cartItemRepository.save(newItem);
-        }
-
-        prepareCartForDto(cart);
-        return cart;
-    }
-
-    // Merge guest cart
-    @Transactional
-    public Cart mergeGuestCartWithUser(String sessionId, Long userId) {
-        Optional<Cart> guestCartOpt = cartRepository.findBySessionId(sessionId);
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
-
-        Cart userCart = cartRepository.findByUser(user)
-                .orElseGet(() -> {
-                    Cart newCart = new Cart();
-                    newCart.setUser(user);
-                    return cartRepository.save(newCart);
-                });
-
-        if (guestCartOpt.isEmpty()) {
-            prepareCartForDto(userCart);
-            return userCart;
-        }
-
-        Cart guestCart = guestCartOpt.get();
-        List<CartItem> guestItems = cartItemRepository.findByCart(guestCart);
-
-        for (CartItem guestItem : guestItems) {
-            Optional<CartItem> existingItem = cartItemRepository.findByCartAndProductId(userCart, guestItem.getProductId());
-            if (existingItem.isPresent()) {
-                CartItem item = existingItem.get();
-                item.setQuantity(item.getQuantity() + guestItem.getQuantity());
-                cartItemRepository.save(item);
-            } else {
-                guestItem.setCart(userCart);
-                cartItemRepository.save(guestItem);
-            }
-        }
-
-        cartRepository.delete(guestCart);
-
-        prepareCartForDto(userCart);
-        return userCart;
-    }
-
-    // Update for user
-    @Transactional
-    public Cart updateCartItemForUser(Long userId, Long productId, int quantity) {
-        if (quantity < 1) throw new RuntimeException("Quantity must be at least 1");
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
-
-        Cart cart = cartRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Cart not found for user ID: " + userId));
 
         CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
-                .orElseThrow(() -> new RuntimeException("Product not found in cart"));
+                .orElseGet(() -> {
+                    CartItem newItem = new CartItem();
+                    newItem.setCart(cart);
+                    newItem.setProductId(productId);
+                    newItem.setQuantity(0);
+                    return newItem;
+                });
 
-        item.setQuantity(quantity);
+        item.setQuantity(item.getQuantity() + quantity);
         cartItemRepository.save(item);
-
         prepareCartForDto(cart);
         return cart;
     }
 
-    // Update for guest
+    // -------------------- UPDATE CART ITEM --------------------
     @Transactional
     public Cart updateCartItemForGuest(String sessionId, Long productId, int quantity) {
-        if (quantity < 1) throw new RuntimeException("Quantity must be at least 1");
+        if (quantity <= 0) return removeItemForGuest(sessionId, productId);
 
         Cart cart = cartRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new RuntimeException("Cart not found for session: " + sessionId));
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
 
         CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
-                .orElseThrow(() -> new RuntimeException("Product not found in cart"));
+                .orElseThrow(() -> new RuntimeException("Item not found"));
 
         item.setQuantity(quantity);
         cartItemRepository.save(item);
-
         prepareCartForDto(cart);
         return cart;
     }
 
-    // Remove for user
     @Transactional
-    public Cart removeItemForUser(Long userId, Long productId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+    public Cart updateCartItemForUser(Long userId, Long productId, int quantity) {
+        if (quantity <= 0) return removeItemForUser(userId, productId);
 
-        Cart cart = cartRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Cart not found for user ID: " + userId));
+        Cart cart = cartRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
 
         CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
-                .orElseThrow(() -> new RuntimeException("Product not found in cart"));
+                .orElseThrow(() -> new RuntimeException("Item not found"));
 
-        cartItemRepository.delete(item);
-
+        item.setQuantity(quantity);
+        cartItemRepository.save(item);
         prepareCartForDto(cart);
         return cart;
     }
 
-    // Remove for guest
+    // -------------------- REMOVE ITEM --------------------
     @Transactional
     public Cart removeItemForGuest(String sessionId, Long productId) {
         Cart cart = cartRepository.findBySessionId(sessionId)
-                .orElseThrow(() -> new RuntimeException("Cart not found for session: " + sessionId));
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
 
         CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
-                .orElseThrow(() -> new RuntimeException("Product not found in cart"));
+                .orElseThrow(() -> new RuntimeException("Item not found"));
 
+        cart.removeCartItem(item);
         cartItemRepository.delete(item);
 
+        if (cart.getCartItems().isEmpty()) {
+            cartRepository.delete(cart);
+            return null;
+        }
+
+        return cartRepository.save(cart);
+    }
+
+    @Transactional
+    public Cart removeItemForUser(Long userId, Long productId) {
+        Cart cart = cartRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
+
+        CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
+                .orElseThrow(() -> new RuntimeException("Item not found"));
+
+        cart.removeCartItem(item);
+        cartItemRepository.delete(item);
+
+        if (cart.getCartItems().isEmpty()) {
+            cartRepository.delete(cart);
+            return null;
+        }
+
+        return cartRepository.save(cart);
+    }
+
+    // -------------------- DECREMENT ITEM --------------------
+    @Transactional
+    public Cart decrementItemForGuest(String sessionId, Long productId) {
+        Cart cart = cartRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
+
+        CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
+                .orElseThrow(() -> new RuntimeException("Item not found"));
+
+        if (item.getQuantity() > 1) {
+            item.setQuantity(item.getQuantity() - 1);
+            cartItemRepository.save(item);
+        } else {
+            return removeItemForGuest(sessionId, productId);
+        }
+
         prepareCartForDto(cart);
         return cart;
     }
 
-    // Clear for user
     @Transactional
-    public Cart clearCartForUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+    public Cart decrementItemForUser(Long userId, Long productId) {
+        Cart cart = cartRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
 
-        Cart cart = cartRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Cart not found for user ID: " + userId));
+        CartItem item = cartItemRepository.findByCartAndProductId(cart, productId)
+                .orElseThrow(() -> new RuntimeException("Item not found"));
 
-        List<CartItem> items = cartItemRepository.findByCart(cart);
-        cartItemRepository.deleteAll(items);
+        if (item.getQuantity() > 1) {
+            item.setQuantity(item.getQuantity() - 1);
+            cartItemRepository.save(item);
+        } else {
+            return removeItemForUser(userId, productId);
+        }
 
         prepareCartForDto(cart);
         return cart;
     }
 
-    // Clear for guest
+    // -------------------- CLEAR CART --------------------
     @Transactional
-    public Cart clearCartForGuest(String sessionId) {
+    public void clearCartForGuest(String sessionId) {
+        Cart cart = cartRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
+
+        cartItemRepository.deleteAll(cart.getCartItems());
+        cartRepository.delete(cart);
+    }
+
+    @Transactional
+    public void clearCartForUser(Long userId) {
+        Cart cart = cartRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
+
+        cartItemRepository.deleteAll(cart.getCartItems());
+        cartRepository.delete(cart);
+    }
+
+    // -------------------- GET CART --------------------
+    public Cart getCartForGuest(String sessionId) {
         Cart cart = cartRepository.findBySessionId(sessionId)
                 .orElseGet(() -> {
-                    Cart c = new Cart();
-                    c.setSessionId(sessionId);
-                    return cartRepository.save(c);
+                    Cart newCart = new Cart();
+                    newCart.setSessionId(sessionId);
+                    return cartRepository.save(newCart);
                 });
-
-        List<CartItem> items = cartItemRepository.findByCart(cart);
-        cartItemRepository.deleteAll(items);
 
         prepareCartForDto(cart);
         return cart;
@@ -231,44 +221,63 @@ public class CartService {
 
     public Cart getCartForUser(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        Cart cart = cartRepository.findByUser(user)
+        Cart cart = cartRepository.findByUser_Id(userId)
                 .orElseGet(() -> {
-                    Cart c = new Cart();
-                    c.setUser(user);
-                    return cartRepository.save(c);
+                    Cart newCart = new Cart();
+                    newCart.setUser(user);
+                    return cartRepository.save(newCart);
                 });
 
         prepareCartForDto(cart);
         return cart;
     }
 
-    public Cart getCartForGuest(String sessionId) {
-        Cart cart = cartRepository.findBySessionId(sessionId)
+    // -------------------- MERGE GUEST CART --------------------
+    @Transactional
+    public Cart mergeGuestCartWithUser(String sessionId, Long userId) {
+        Cart guestCart = cartRepository.findBySessionId(sessionId).orElse(null);
+        if (guestCart == null) return getCartForUser(userId);
+
+        Cart userCart = cartRepository.findByUser_Id(userId)
                 .orElseGet(() -> {
                     Cart c = new Cart();
-                    c.setSessionId(sessionId);
+                    c.setUser(userRepository.findById(userId).orElseThrow());
                     return cartRepository.save(c);
                 });
 
-        prepareCartForDto(cart);
-        return cart;
+        for (CartItem item : guestCart.getCartItems()) {
+            CartItem existing = cartItemRepository.findByCartAndProductId(userCart, item.getProductId())
+                    .orElse(null);
+
+            if (existing != null) {
+                existing.setQuantity(existing.getQuantity() + item.getQuantity());
+                cartItemRepository.save(existing);
+            } else {
+                item.setCart(userCart);
+                cartItemRepository.save(item);
+            }
+        }
+
+        cartRepository.delete(guestCart);
+        prepareCartForDto(userCart);
+        return userCart;
     }
 
-    // Ensure lazy associations are initialized while inside transaction
+    // -------------------- HELPER --------------------
     private void prepareCartForDto(Cart cart) {
         if (cart == null) return;
-        // ensure items loaded
+
         cart.getCartItems().size();
-        // touch fields
         for (CartItem ci : cart.getCartItems()) {
             ci.getCartItemId();
             ci.getProductId();
             ci.getQuantity();
         }
+
         if (cart.getUser() != null) {
-            cart.getUser().getId(); // touch user id only
+            cart.getUser().getId();
         }
     }
 }
